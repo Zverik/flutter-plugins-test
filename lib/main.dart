@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:extension_test/plugin_provider.dart';
 import 'package:extension_test/plugins.dart';
-import 'package:extension_test/state.dart';
 import 'package:flutter/material.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
@@ -41,15 +40,15 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final _state = AppState();
   late StreamSubscription _intentSub;
+  static final PluginProvider pp = PluginProvider.instance;
 
   Future<void> _gotPlugins(List<SharedMediaFile> files) async {
     for (final sharedFile in files) {
       // This is a debug print to learn file's name and mime type.
       print(sharedFile.toMap());
       try {
-        await PluginProvider.instance.install(sharedFile.path);
+        await pp.install(sharedFile.path);
       } on PluginLoadException catch (e) {
         print('Error: $e');
       }
@@ -64,12 +63,17 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  void _repaint() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void initState() {
     super.initState();
 
-    // At this point the state is being initialized from the plugins.
-    PluginProvider.instance.setState(_state);
+    pp.addListener(_repaint);
 
     // Subscribing to the incoming files stream.
     _intentSub = ReceiveSharingIntent.instance
@@ -85,17 +89,32 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void dispose() {
     _intentSub.cancel();
+    pp.removeListener(_repaint);
     super.dispose();
   }
 
   void _incrementCounter() {
     setState(() {
-      _state.increment();
+      pp.onIncrementTap();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    Widget? numberWidget = pp.buildNumberWidget(context);
+    numberWidget ??= Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          const Text(
+            'You have pushed the button this many times:',
+          ),
+          Text(
+            '${pp.state.counter}',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
+        ],
+      );
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -112,20 +131,32 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '${_state.counter}',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      body: Stack(children: [
+        Center(
+          child: numberWidget,
         ),
-      ),
+        Align(
+          alignment: Alignment.bottomRight,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 90, right: 12),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                for (final button in pp.getButtons())
+                  FloatingActionButton(
+                    heroTag: 'floating_hero_$button',
+                    onPressed: () {
+                      setState(() {
+                        pp.onButtonTap(button);
+                      });
+                    },
+                    child: Text(button),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ]),
       floatingActionButton: FloatingActionButton(
         onPressed: _incrementCounter,
         tooltip: 'Increment',

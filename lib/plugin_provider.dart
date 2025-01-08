@@ -1,44 +1,21 @@
+import 'dart:convert' show json;
 import 'dart:io';
-import 'package:extension_test/state.dart';
+import 'package:dart_eval/dart_eval.dart';
+import 'package:extension_test/bridges.dart';
+import 'package:extension_test/models.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_archive/flutter_archive.dart';
+import 'package:flutter_eval/flutter_eval.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:yaml/yaml.dart';
-
-/// from https://stackoverflow.com/a/67885082/1297601
-/// because yaml module returns a weird map.
-extension YamlMapConverter on YamlMap {
-  dynamic _convertNode(dynamic v) {
-    if (v is YamlMap) {
-      return v.toMap();
-    } else if (v is YamlList) {
-      var list = <dynamic>[];
-      for (final e in v) {
-        list.add(_convertNode(e));
-      }
-      return list;
-    } else {
-      return v;
-    }
-  }
-
-  Map<String, dynamic> toMap() {
-    var map = <String, dynamic>{};
-    nodes.forEach((k, v) {
-      map[(k as YamlScalar).value.toString()] = _convertNode(v.value);
-    });
-    return map;
-  }
-}
 
 /// Plugin description. Basically an id, a name, and some extra things.
 class Plugin {
   final String id;
   final String name;
-  final Map<String, dynamic> metadata;
 
-  Plugin(this.id, {required this.name, required this.metadata});
+  Plugin(this.id, [String? name]) : name = name ?? id;
 }
 
 /// Thrown only when loading a plugin. Prints the enclosed exception as well.
@@ -54,12 +31,42 @@ class PluginLoadException implements Exception {
   }
 }
 
+class PluginContextImpl extends PluginContext with ChangeNotifier {
+  final Directory pluginDir;
+
+  PluginContextImpl(super.state, this.pluginDir);
+
+  @override
+  File getFile(String name) {
+    return File('${pluginDir.path}/$name');
+  }
+
+  @override
+  Future<int?> readPreference(String key) async {
+    final prefs = SharedPreferencesAsync();
+    return await prefs.getInt('plugin/$key');
+  }
+
+  @override
+  Future<void> savePreference(String key, int value) async {
+    final prefs = SharedPreferencesAsync();
+    await prefs.setInt('plugin/$key', value);
+  }
+
+  @override
+  void repaint() {
+    notifyListeners();
+  }
+}
+
 /// The main class for working with plugins. A singleton, use [instance].
-class PluginProvider {
+class PluginProvider extends ChangeNotifier {
   static const _kEnabledKey = 'plugins_enabled';
   static final instance = PluginProvider._();
   final _plugins = <Plugin>[];
+  final _pluginCode = <String, PluginBase>{};
   final _enabled = <String>{};
+  late final Directory _pluginsDirectory;
   bool _ready = false;
 
   /// App state is initialized here, but usually is supplied from outside
@@ -67,6 +74,7 @@ class PluginProvider {
   AppState state = AppState();
 
   PluginProvider._() {
+    state.addListener(notifyCounterChanged);
     _load();
   }
 
@@ -83,12 +91,14 @@ class PluginProvider {
   bool isActive(String id) => _enabled.contains(id);
 
   Future<void> _load() async {
+    final docDir = await getApplicationDocumentsDirectory();
+    _pluginsDirectory = Directory("${docDir.path}/plugins");
+
     // Create plugins dir if not exists.
-    final pluginsDir = await _getPluginsDirectory();
-    await pluginsDir.create(recursive: true);
+    await _pluginsDirectory.create(recursive: true);
 
     // Read plugins list.
-    await for (final entry in pluginsDir.list()) {
+    await for (final entry in _pluginsDirectory.list()) {
       if (entry is Directory) {
         final metadata = await _readPluginData(entry);
         if (metadata != null) _plugins.add(metadata);
@@ -103,11 +113,16 @@ class PluginProvider {
 
     // Enable plugins.
     for (final id in _enabled) {
-      await _enable(id);
+      _enable(id);
     }
 
-    _rebuildState();
     _ready = true;
+
+    try {
+      await _installFromAssets();
+    } on PluginLoadException catch (e) {
+      print('Failed to install plugin from assets: $e');
+    }
   }
 
   Future<void> _saveEnabled() async {
@@ -117,42 +132,109 @@ class PluginProvider {
     await prefs.setStringList(_kEnabledKey, enabledList);
   }
 
-  Future<void> _enable(String id) async {
+  void _enable(String id) {
     if (_enabled.contains(id)) return;
+    final p = _loadCode(id);
+    _pluginCode[id] = p;
+    if (state.counter == 0) state.counter = p.initial;
+    state.step = p.step;
+    p.context.addListener(_onRepaint);
+    p.init();
     _enabled.add(id);
+    _onRepaint();
   }
 
-  Future<void> _disable(String id) async {
+  PluginBase _loadCode(String pluginId) {
+    final dir = _getPluginDirectory(pluginId);
+    final evc = File('${dir.path}/plugin.evc');
+    final data = evc.readAsBytesSync();
+    final runtime = Runtime(ByteData.sublistView(data));
+    runtime.addPlugin(FlutterEvalPlugin());
+    runtime.addPlugin(PluginBasePlugin());
+    final context = PluginContextImpl(state, dir);
+    return runtime.executeLib(
+        'package:plugin/main.dart', 'setup', [$PluginContext.wrap(context)]);
+  }
+
+  void _disable(String id) {
     if (!_enabled.contains(id)) return;
     _enabled.remove(id);
+    final p = _pluginCode[id];
+    if (p != null) {
+      p.context.removeListener(_onRepaint);
+      _pluginCode.remove(id);
+    }
+    _onRepaint();
   }
 
-  void setState(AppState newState) {
-    state = newState;
-    _rebuildState();
-    state.reset();
+  void _onRepaint() {
+    notifyListeners();
   }
 
-  void _rebuildState() {
+  void onIncrementTap() {
+    int increment = 1;
     for (final p in _plugins) {
-      if (isActive(p.id)) {
-        if (p.metadata.containsKey('initial')) {
-          state.initial = p.metadata['initial'] as int;
-        }
-        if (p.metadata.containsKey('increment')) {
-          state.step = p.metadata['increment'] as int;
+      if (isActive(p.id) && _pluginCode.containsKey(p.id)) {
+        final int step = _pluginCode[p.id]!.step;
+        if (step > increment) increment = step;
+      }
+    }
+    state.counter += increment;
+  }
+
+  List<String> getButtons() {
+    final result = <String>[];
+    for (final p in _plugins) {
+      if (isActive(p.id) && _pluginCode.containsKey(p.id)) {
+        final code = _pluginCode[p.id]!;
+        result.addAll(code.buttons);
+      }
+    }
+    return result;
+  }
+
+  void onButtonTap(String button) {
+    for (final p in _plugins) {
+      if (isActive(p.id) && _pluginCode.containsKey(p.id)) {
+        final code = _pluginCode[p.id]!;
+        if (code.buttons.contains(button)) {
+          _pluginCode[p.id]!.onButtonTapped(button, state);
         }
       }
     }
   }
 
+  void notifyCounterChanged() {
+    for (final p in _plugins) {
+      if (isActive(p.id) && _pluginCode.containsKey(p.id)) {
+        _pluginCode[p.id]!.onCounterChanged(state);
+      }
+    }
+  }
+
+  Widget? buildNumberWidget(BuildContext context) {
+    for (final p in _plugins) {
+      if (isActive(p.id) && _pluginCode.containsKey(p.id)) {
+        final widget = _pluginCode[p.id]!.numberWidget(context, state);
+        if (widget != null) return widget;
+      }
+    }
+    return null;
+  }
+
+  Widget? buildSettingsWidget(BuildContext context, String pluginId) {
+    if (isActive(pluginId) && _pluginCode.containsKey(pluginId)) {
+      return _pluginCode[pluginId]!.settingsWidget(context);
+    }
+    return null;
+  }
+
   Future<void> setStateAndSave(String id, bool active) async {
     if (isActive(id)) {
-      await _disable(id);
+      _disable(id);
     } else {
-      await _enable(id);
+      _enable(id);
     }
-    _rebuildState();
     await _saveEnabled();
   }
 
@@ -163,46 +245,49 @@ class PluginProvider {
   Future<void> deletePlugin(String id) async {
     if (isActive(id)) await setStateAndSave(id, false);
     _plugins.removeWhere((p) => p.id == id);
-    final pluginDir = await _getPluginDirectory(id);
+    final pluginDir = _getPluginDirectory(id);
     if (await pluginDir.exists()) {
       await pluginDir.delete(recursive: true);
     }
   }
 
-  Future<Directory> _getPluginsDirectory() async {
-    final docDir = await getApplicationDocumentsDirectory();
-    return Directory("${docDir.path}/plugins");
+  Future<void> _installFromAssets() async {
+    ByteData pluginFile;
+    try {
+      pluginFile = await rootBundle.load('assets/plugin.zip');
+    } on Exception {
+      return;
+    }
+    final tmpDir = await getTemporaryDirectory();
+    final File tmpPath = File('${tmpDir.path}/bundled_plugin.zip');
+    await tmpPath.writeAsBytes(pluginFile.buffer.asUint8List(), flush: true);
+    try {
+      await install(tmpPath.path);
+    } finally {
+      try {
+        await tmpPath.delete();
+      } on Exception {
+        // it's fine if we leave it.
+      }
+    }
   }
 
-  Future<Directory> _getPluginDirectory(String id) async {
-    final docDir = await _getPluginsDirectory();
-    return Directory("${docDir.path}/id");
+  Directory _getPluginDirectory(String id) {
+    return Directory("${_pluginsDirectory.path}/$id");
   }
 
   Future<Plugin?> _readPluginData(Directory path) async {
     // Read the metadata.
-    final metadataFile = File("${path.path}/metadata.yaml");
+    final metadataFile = File("${path.path}/metadata.json");
     if (!await metadataFile.exists()) {
       return null;
     }
 
-    // Parse the metadata.yaml file.
-    Map<String, dynamic> metadata;
-    try {
-      final metadataContents = await metadataFile.readAsString();
-      final YamlMap yamlData = loadYaml(metadataContents);
-      metadata = yamlData.toMap();
-    } on Exception {
-      return null;
-    }
+    // Parse the metadata.json file.
+    final metadataContents = await metadataFile.readAsString();
+    final Map<String, dynamic> metadata = json.decode(metadataContents);
 
-    final String pluginId = metadata['id']!;
-    final record = Plugin(
-      pluginId,
-      name: metadata['name'],
-      metadata: metadata,
-    );
-    return record;
+    return Plugin(metadata['id'], metadata['name']);
   }
 
   Future<void> install(String path) async {
@@ -235,20 +320,14 @@ class PluginProvider {
       }
 
       // Read the metadata.
-      final metadataFile = File("${tmpPluginDir.path}/metadata.yaml");
+      final metadataFile = File("${tmpPluginDir.path}/metadata.json");
       if (!await metadataFile.exists()) {
         throw PluginLoadException("No ${metadataFile.path} found");
       }
 
       // Parse the metadata.yaml file.
-      Map<String, dynamic> metadata;
-      try {
-        final metadataContents = await metadataFile.readAsString();
-        final YamlMap yamlData = loadYaml(metadataContents);
-        metadata = yamlData.toMap();
-      } on Exception catch (e) {
-        throw PluginLoadException("Failed to read the metadata file", e);
-      }
+      final metadataContents = await metadataFile.readAsString();
+      final Map<String, dynamic> metadata = json.decode(metadataContents);
 
       // Check for required fields.
       const requiredFields = ['id', 'name'];
@@ -271,15 +350,11 @@ class PluginProvider {
       await deletePlugin(pluginId);
 
       // Create the plugin directory and move files there.
-      final pluginDir = await _getPluginDirectory(pluginId);
+      final pluginDir = _getPluginDirectory(pluginId);
       await tmpPluginDir.rename(pluginDir.path);
 
       // Add the plugin record to the list.
-      final record = Plugin(
-        pluginId,
-        name: metadata['name'],
-        metadata: metadata,
-      );
+      final record = Plugin(pluginId, metadata['name']);
       _plugins.add(record);
 
       if (wasActive) {

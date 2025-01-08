@@ -1,3 +1,7 @@
+*.zip
+plugins/*/*.evc
+plugins/test_eval/
+
 # Miscellaneous
 *.class
 *.log

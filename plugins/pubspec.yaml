@@ -1,0 +1,14 @@
+name: package_plugins
+description: 'Plugin Packager'
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  dart_eval: ^0.7.10
+  flutter_eval: ^0.7.6
+  archive: ^4.0.2
+  path: ^1.9.1
