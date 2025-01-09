@@ -1,6 +1,7 @@
 import 'dart:convert' show json;
 import 'dart:io';
 import 'package:dart_eval/dart_eval.dart';
+import 'package:dart_eval/dart_eval_security.dart';
 import 'package:extension_test/bridges.dart';
 import 'package:extension_test/models.dart';
 import 'package:flutter/material.dart';
@@ -151,6 +152,7 @@ class PluginProvider extends ChangeNotifier {
     final runtime = Runtime(ByteData.sublistView(data));
     runtime.addPlugin(FlutterEvalPlugin());
     runtime.addPlugin(PluginBasePlugin());
+    runtime.grant(FilesystemPermission.directory(dir.path));
     final context = PluginContextImpl(state, dir);
     return runtime.executeLib(
         'package:plugin/main.dart', 'setup', [$PluginContext.wrap(context)]);
@@ -230,7 +232,7 @@ class PluginProvider extends ChangeNotifier {
   }
 
   Future<void> setStateAndSave(String id, bool active) async {
-    if (isActive(id)) {
+    if (!active) {
       _disable(id);
     } else {
       _enable(id);
@@ -255,7 +257,8 @@ class PluginProvider extends ChangeNotifier {
     ByteData pluginFile;
     try {
       pluginFile = await rootBundle.load('assets/plugin.zip');
-    } on Exception {
+    } on FlutterError {
+      // No plugin packaged.
       return;
     }
     final tmpDir = await getTemporaryDirectory();
@@ -346,7 +349,6 @@ class PluginProvider extends ChangeNotifier {
       }
 
       // If this plugin was installed, remove it.
-      bool wasActive = isActive(pluginId);
       await deletePlugin(pluginId);
 
       // Create the plugin directory and move files there.
@@ -357,9 +359,7 @@ class PluginProvider extends ChangeNotifier {
       final record = Plugin(pluginId, metadata['name']);
       _plugins.add(record);
 
-      if (wasActive) {
-        await setStateAndSave(pluginId, true);
-      }
+      await setStateAndSave(pluginId, true);
     } finally {
       // delete the directory and exit
       try {

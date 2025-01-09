@@ -50,10 +50,10 @@ packages:
     dependency: transitive
     description:
       name: change_case
-      sha256: "99cfdf2018c627c8a3af5a23ea4c414eb69c75c31322d23b9660ebc3cf30b514"
+      sha256: e41ef3df58521194ef8d7649928954805aeb08061917cf658322305e61568003
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.0"
+    version: "2.2.0"
   characters:
     dependency: transitive
     description:
@@ -176,7 +176,7 @@ packages:
     description:
       path: "."
       ref: flutter_3_27
-      resolved-ref: d5c890f21a1193313afff7092faa769df26a753b
+      resolved-ref: "8f47838afb81338d2395df35a6a7db04cc2653ce"
       url: "https://github.com/Zverik/flutter_eval.git"
     source: git
     version: "0.7.6"
@@ -394,10 +394,10 @@ packages:
     dependency: transitive
     description:
       name: pubspec_parse
-      sha256: "81876843eb50dc2e1e5b151792c9a985c5ed2536914115ed04e9c8528f6647b0"
+      sha256: "0560ba233314abbed0a48a2956f7f022cce7c3e1e73df540277da7544cad4082"
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.0"
+    version: "1.5.0"
   quote_buffer:
     dependency: transitive
     description:
@@ -419,10 +419,10 @@ packages:
     dependency: "direct main"
     description:
       name: shared_preferences
-      sha256: "3c7e73920c694a436afaf65ab60ce3453d91f84208d761fbd83fc21182134d93"
+      sha256: a752ce92ea7540fc35a0d19722816e04d0e72828a4200e83a98cf1a1eb524c9a
       url: "https://pub.dev"
     source: hosted
-    version: "2.3.4"
+    version: "2.3.5"
   shared_preferences_android:
     dependency: transitive
     description:

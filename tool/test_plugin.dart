@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:dart_eval/dart_eval.dart';
+import 'package:dart_eval/dart_eval_security.dart';
 import 'package:extension_test/bridges.dart';
 import 'package:extension_test/models.dart';
 import 'package:flutter/widgets.dart';
@@ -55,6 +56,7 @@ PluginBase installFromDirectory(Directory dir) {
   final runtime = Runtime(ByteData.sublistView(data));
   runtime.addPlugin(FlutterEvalPlugin());
   runtime.addPlugin(PluginBasePlugin());
+  runtime.grant(FilesystemPermission.directory(dir.path));
   final context = PluginContextImpl(AppState(), dir);
   return runtime.executeLib(
       'package:plugin/main.dart', 'setup', [$PluginContext.wrap(context)]);
