@@ -20,6 +20,9 @@ class AppState extends ChangeNotifier {
     _counter = value;
     notifyListeners();
   }
+
+  @override
+  String toString() => 'AppState($_counter, ($initial, $step))';
 }
 
 abstract class PluginContext implements Listenable {
