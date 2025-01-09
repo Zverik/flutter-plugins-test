@@ -10,10 +10,6 @@ class AppState extends ChangeNotifier {
   int step = 1;
   int _counter = 0;
 
-  void reset() {
-    counter = initial;
-  }
-
   int get counter => _counter;
 
   set counter(int value) {

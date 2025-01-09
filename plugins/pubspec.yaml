@@ -12,3 +12,10 @@ dependencies:
   flutter_eval: ^0.7.6
   archive: ^4.0.2
   path: ^1.9.1
+
+dependency_overrides:
+  flutter_eval:
+    git:
+      url: https://github.com/Zverik/flutter_eval.git
+      ref: flutter_3_27
+

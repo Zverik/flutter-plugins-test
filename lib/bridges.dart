@@ -129,7 +129,7 @@ class $PluginContext implements $Instance {
               BridgeTypeAnnotation(BridgeTypeRef(CoreTypes.string)), false),
         ],
       )),
-      'writePreference': BridgeMethodDef(BridgeFunctionDef(
+      'savePreference': BridgeMethodDef(BridgeFunctionDef(
         returns: BridgeTypeAnnotation(BridgeTypeRef(
             CoreTypes.future, [BridgeTypeRef(CoreTypes.voidType)])),
         params: [

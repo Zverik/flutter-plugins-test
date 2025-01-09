@@ -114,7 +114,7 @@ class PluginProvider extends ChangeNotifier {
 
     // Enable plugins.
     for (final id in _enabled) {
-      _enable(id);
+      _enable(id, true);
     }
 
     _ready = true;
@@ -133,11 +133,12 @@ class PluginProvider extends ChangeNotifier {
     await prefs.setStringList(_kEnabledKey, enabledList);
   }
 
-  void _enable(String id) {
-    if (_enabled.contains(id)) return;
+  void _enable(String id, [bool force = false]) {
+    if (!force && _enabled.contains(id)) return;
     final p = _loadCode(id);
     _pluginCode[id] = p;
     if (state.counter == 0) state.counter = p.initial;
+    state.initial = getBiggestInitial();
     state.step = p.step;
     p.context.addListener(_onRepaint);
     p.init();
@@ -174,14 +175,25 @@ class PluginProvider extends ChangeNotifier {
   }
 
   void onIncrementTap() {
-    int increment = 1;
+    int? increment;
     for (final p in _plugins) {
       if (isActive(p.id) && _pluginCode.containsKey(p.id)) {
         final int step = _pluginCode[p.id]!.step;
-        if (step > increment) increment = step;
+        if (increment == null || step > increment) increment = step;
       }
     }
-    state.counter += increment;
+    state.counter += increment ?? 1;
+  }
+
+  int getBiggestInitial() {
+    int? initial;
+    for (final p in _plugins) {
+      if (isActive(p.id) && _pluginCode.containsKey(p.id)) {
+        final int first = _pluginCode[p.id]!.initial;
+        if (initial == null || first > initial) initial = first;
+      }
+    }
+    return initial ?? 0;
   }
 
   List<String> getButtons() {
@@ -212,6 +224,7 @@ class PluginProvider extends ChangeNotifier {
         _pluginCode[p.id]!.onCounterChanged(state);
       }
     }
+    _onRepaint();
   }
 
   Widget? buildNumberWidget(BuildContext context) {

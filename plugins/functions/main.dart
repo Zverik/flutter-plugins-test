@@ -3,6 +3,7 @@ import 'dart:math';
 
 class FunctionPlugin extends PluginBase {
   final String _kMinusButton = '-1';
+  final String _kResetButton = 'X';
   final Random _random = Random();
 
   FunctionPlugin(PluginContext context) : super(context) {
@@ -10,7 +11,7 @@ class FunctionPlugin extends PluginBase {
   }
 
   @override
-  List<String> get buttons => [_kMinusButton];
+  List<String> get buttons => [_kResetButton, _kMinusButton];
 
   @override
   int get step => _random.nextInt(5);
@@ -19,6 +20,8 @@ class FunctionPlugin extends PluginBase {
   void onButtonTapped(String button, AppState state) {
     if (button == _kMinusButton) {
       state.counter -= 1;
+    } else if (button == _kResetButton) {
+      state.counter = state.initial;
     }
   }
 }

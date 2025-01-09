@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 class WidgetPlugin extends PluginBase {
   bool needSave = true;
+  bool readValue = false;
 
   WidgetPlugin(PluginContext context) : super(context);
 
@@ -10,7 +11,18 @@ class WidgetPlugin extends PluginBase {
   Future<void> init() async {
     final needSaveInt = await context.readPreference('widget-save');
     needSave = needSaveInt == 1;
-    context.repaint();
+    if (needSave) {
+      final int? value = await context.readPreference('widget-counter');
+      if (value != null) context.state.counter = value;
+    }
+    readValue = true;
+  }
+
+  @override
+  void onCounterChanged(AppState state) {
+    if (needSave && readValue) {
+      context.savePreference('widget-counter', state.counter);
+    }
   }
 
   @override
@@ -27,7 +39,22 @@ class WidgetPlugin extends PluginBase {
 
   @override
   Widget? settingsWidget(BuildContext context) {
-    return null; // TODO
+    return Column(
+      children: [
+        SwitchListTile(
+          title: Text('Persist counter'),
+          value: needSave,
+          onChanged: (value) {
+            needSave = value;
+            this.context.savePreference('widget-save', needSave ? 1 : 0);
+            if (needSave) {
+              onCounterChanged(this.context.state);
+            }
+            this.context.repaint();
+          },
+        ),
+      ],
+    );
   }
 }
 

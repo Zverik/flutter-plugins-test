@@ -176,7 +176,7 @@ packages:
     description:
       path: "."
       ref: flutter_3_27
-      resolved-ref: "8f47838afb81338d2395df35a6a7db04cc2653ce"
+      resolved-ref: "4c367912a9b56c494cad4f410160887290f08455"
       url: "https://github.com/Zverik/flutter_eval.git"
     source: git
     version: "0.7.6"

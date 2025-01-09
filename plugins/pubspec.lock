@@ -50,10 +50,10 @@ packages:
     dependency: transitive
     description:
       name: change_case
-      sha256: "99cfdf2018c627c8a3af5a23ea4c414eb69c75c31322d23b9660ebc3cf30b514"
+      sha256: e41ef3df58521194ef8d7649928954805aeb08061917cf658322305e61568003
       url: "https://pub.dev"
     source: hosted
-    version: "2.1.0"
+    version: "2.2.0"
   characters:
     dependency: transitive
     description:
@@ -150,10 +150,11 @@ packages:
   flutter_eval:
     dependency: "direct main"
     description:
-      name: flutter_eval
-      sha256: "14753a02e17cae2ddc8a0f9f55bde41bc6360a8a771aa058c42df0af590a7cb6"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: flutter_3_27
+      resolved-ref: ce3b065694e74d8f8ddd26c53a0e688f145e9cbe
+      url: "https://github.com/Zverik/flutter_eval.git"
+    source: git
     version: "0.7.6"
   glob:
     dependency: transitive
@@ -319,10 +320,10 @@ packages:
     dependency: transitive
     description:
       name: pubspec_parse
-      sha256: "81876843eb50dc2e1e5b151792c9a985c5ed2536914115ed04e9c8528f6647b0"
+      sha256: "0560ba233314abbed0a48a2956f7f022cce7c3e1e73df540277da7544cad4082"
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.0"
+    version: "1.5.0"
   quote_buffer:
     dependency: transitive
     description:
