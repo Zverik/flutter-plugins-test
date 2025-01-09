@@ -1,7 +1,6 @@
 *.zip
 plugins/*/*.evc
 plugins/test_eval/
-plugins/flutter_eval.json
 
 # Miscellaneous
 *.class

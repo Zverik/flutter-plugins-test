@@ -8,6 +8,8 @@ file with `id` and `name` fields, and a code compiled to `plugin.evc`.
 See the `plugins` directory for examples and for a build script.
 Open a plugin with the app to install it.
 
+To compile and test plugins, run `tool/test_plugin.sh c plugins/<name>`
+
 ## Author and License
 
 Written by Ilya Zverev, published under the WTFPL.
